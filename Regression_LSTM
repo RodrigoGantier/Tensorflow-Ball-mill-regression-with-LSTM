@@ -1,0 +1,159 @@
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.pyplot import axis
+from sklearn.metrics import mean_squared_error
+
+
+#from data
+train_x = np.load('/Users/yasushishibe/Desktop/laoshi_data/tr_x.npy')
+train_y = np.load('/Users/yasushishibe/Desktop/laoshi_data/tr_y.npy')
+test_x = np.load('/Users/yasushishibe/Desktop/laoshi_data/te_x.npy')
+test_y = np.load('/Users/yasushishibe/Desktop/laoshi_data/te_y.npy')
+
+train_x = np.append(train_x, train_x, 0)
+train_y = np.append(train_y, train_y)
+train_x = np.append(train_x, train_x, 0)
+train_y = np.append(train_y, train_y)
+
+test_x = np.append(test_x, test_x, 0)
+test_y = np.append(test_y, test_y)
+test_x = np.append(test_x, test_x, 0)
+test_y = np.append(test_y, test_y)
+
+# Network Parameters
+n_input = train_x.shape[1] # laoshi data input (img shape: 1*240)
+n_steps = 6 # timesteps
+n_hidden = 150 # hidden layer num of features
+n_output = 1 #total output (0-9 digits)
+learning_rate = 0.006
+batch_init = 0
+
+training_iters = 450
+
+batch_size = 250
+ventana = 11
+# tf Graph input
+x = tf.placeholder("float", [None, n_steps, n_input])
+y_ = tf.placeholder("float", [None, n_output])
+keep_prob = tf.placeholder("float")
+
+w_fc1 = tf.Variable(tf.random_normal([n_input, n_hidden])) # Hidden layer weights
+b_fc1 = tf.Variable(tf.random_normal([n_hidden]))
+
+w_fc2 = tf.Variable(tf.random_normal([n_hidden, n_output]))
+b_fc2 = tf.Variable(tf.random_normal([n_output]))
+
+# input shape: (batch_size, n_steps, n_input)
+x_internal = tf.transpose(x, [1, 0, 2])
+x_internal = tf.reshape(x_internal, [-1, n_input]) # (n_steps*batch_size, n_input)
+            
+lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden, forget_bias=1.0)
+istate = lstm_cell.zero_state(batch_size*(ventana-n_steps), tf.float32)
+
+h_fc1 = tf.nn.relu(tf.matmul(x_internal, w_fc1) + b_fc1)
+h_fc1 = tf.nn.dropout(h_fc1, keep_prob)
+h_fc1 = tf.split(0, n_steps, h_fc1) # n_steps * (batch_size, n_hidden)
+
+outputs, states = tf.nn.rnn(lstm_cell, h_fc1, dtype=tf.float32)
+
+y = tf.add(tf.matmul(outputs[-1], w_fc2), b_fc2)
+rmse = tf.square(y_-y)
+mse = tf.reduce_mean(rmse) # MSE loss
+optimizer = tf.train.AdamOptimizer(learning_rate).minimize(mse)
+
+def sequencesFromTrainingData(batch_size, n_steps, n_input, n_output): 
+    ''' This function creates several training sequences from each
+         ball mill sample window, each training sequence consists of #n_steps samples
+         with 1100 features.
+    '''
+    global batch_init
+    X = []
+    Y = []
+    
+    data_x = np.split(train_x[batch_init:batch_init+ventana*batch_size,:], batch_size, axis=0)
+    data_y = np.split(train_y[batch_init:batch_init+ventana*batch_size], batch_size, axis=0)
+    for p in range(batch_size):
+        sample = data_x[p]
+        lavels = data_y[p]
+        for i in range(ventana-n_steps):
+            X.append(sample[i:i+n_steps,:])
+            Y.append(lavels[i+n_steps])
+    
+    batch_init = batch_init + ventana*batch_size  
+    if (batch_init+ventana*batch_size)>=train_x.shape[0]:
+        batch_init = 0
+    
+    return np.asarray(X), np.asarray(Y)[:, np.newaxis]
+        
+def sequencesFromTestData(batch_size, n_steps, n_input, n_output): 
+    ''' This function creates several test sequences from each
+         ball mill sample window, each training sequence consists of #n_steps samples
+         with 1100 features.
+    '''
+    global batch_init
+    X = []
+    Y = []
+    rest = test_x.shape[0]%ventana
+
+    if rest>0:
+        data_x = np.split(test_x[:-rest, :], test_x.shape[0]/ventana, axis=0)
+        data_y = np.split(test_y[:-rest], test_y.shape[0]/ventana, axis=0)
+    else:
+        data_x = np.split(test_x[:, :], test_x.shape[0]/ventana, axis=0)
+        data_y = np.split(test_y[:], test_y.shape[0]/ventana, axis=0)
+    for p in range(test_x.shape[0]/ventana):
+        sample = data_x[p]
+        lavels = data_y[p]
+        for i in range(ventana-n_steps):
+            X.append(sample[i:i+n_steps,:])
+            Y.append(lavels[i+n_steps])
+    
+    return np.asarray(X), np.asarray(Y)[:, np.newaxis]
+
+# Initializing the variables
+init = tf.initialize_all_variables()
+
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
+
+RMSE = 1000
+step = 1
+
+while RMSE > 0.08:
+#for i in range(training_iters):
+    
+    batch_xs, batch_ys = sequencesFromTrainingData(batch_size, n_steps, n_input, n_output)
+    sess.run(optimizer, feed_dict={x: batch_xs, y_: batch_ys, keep_prob: 0.5})
+    
+    if step % 10 == 0:
+        loss, prediccion = sess.run([mse, y], feed_dict={x: batch_xs, y_: batch_ys, keep_prob: 1})
+        RMSE = mean_squared_error(batch_ys.flatten(), prediccion.flatten())
+        print "Iter " + str(step) + ", Minibatch Loss = " + "{:.6f}".format(loss)+" Minibatch RMSE = " + "{:.6f}".format(RMSE)
+        #plt.plot(batch_ys.flatten(), 'r', prediccion.flatten(), 'b--')
+    step += 1
+    
+print "Optimization Finished!" 
+batch_init = 0
+predic = np.array([])
+task = np.array([])
+
+plt.ion()
+plt.show()
+batch_xs, batch_ys = sequencesFromTestData(batch_size, n_steps, n_input, n_output)
+stado = [np.zeros((batch_size*(ventana-n_steps), n_hidden)), np.zeros((batch_size*(ventana-n_steps), n_hidden))]
+for i in range(batch_size):
+    p, st = sess.run([y, states], feed_dict={x: batch_xs[i,:,:][np.newaxis, :, :], istate: stado, keep_prob: 1} )
+    stado[0] = stado[0][1:,:]
+    stado[0] = np.append(stado[0], st[0], axis = 0)
+    stado[1] = stado[1][1:,:]
+    stado[1] = np.append(stado[1], st[1], axis = 0)
+        
+    p = np.asarray(p)
+
+    predic = np.append(predic, p[0,0])
+    task   = np.append(task, batch_ys[i, :][0])
+plt.plot(task, 'b', predic, 'r--')
+error = mean_squared_error(predic, task)
+print(error)
+
