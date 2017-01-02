@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib.pyplot import axis
 from sklearn.metrics import mean_squared_error
 
-#from data
+#from laoshi data
 train_x = np.load('/Users/yasushishibe/Desktop/laoshi_data/tr_x.npy')
 train_y = np.load('/Users/yasushishibe/Desktop/laoshi_data/tr_y.npy')
 test_x = np.load('/Users/yasushishibe/Desktop/laoshi_data/te_x.npy')
@@ -23,16 +23,15 @@ test_y = np.append(test_y, test_y)
 # Network Parameters
 n_input = train_x.shape[1] # laoshi data input (img shape: 1*240)
 n_steps = 6 # timesteps
-n_hidden = 150 # hidden layer num of features
-n_sltm = 20
+n_hidden = 250 # hidden layer num of features
+n_sltm = 250
 n_output = 1 #total output (0-9 digits)
 learning_rate = 0.006
 batch_init = 0
-
-training_iters = 450
-
+training_iters = 22500
 batch_size = 250
 ventana = 11
+
 # tf Graph input
 x = tf.placeholder("float", [None, n_steps, n_input])
 y_ = tf.placeholder("float", [None, n_output])
@@ -41,7 +40,7 @@ keep_prob = tf.placeholder("float")
 w_fc1 = tf.Variable(tf.random_normal([n_input, n_hidden])) # Hidden layer weights
 b_fc1 = tf.Variable(tf.random_normal([n_hidden]))
 
-w_fc2 = tf.Variable(tf.random_normal([n_hidden, n_output]))
+w_fc2 = tf.Variable(tf.random_normal([n_sltm, n_output]))
 b_fc2 = tf.Variable(tf.random_normal([n_output]))
 
 # input shape: (batch_size, n_steps, n_input)
@@ -49,9 +48,7 @@ x_internal = tf.transpose(x, [1, 0, 2])
 x_internal = tf.reshape(x_internal, [-1, n_input]) # (n_steps*batch_size, n_input)
             
 lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(n_sltm, forget_bias=1.0)
-
 istate = lstm_cell.zero_state(batch_size*(ventana-n_steps), tf.float32)
-
 
 h_fc1 = tf.nn.relu(tf.matmul(x_internal, w_fc1) + b_fc1)
 h_fc1 = tf.nn.dropout(h_fc1, keep_prob)
@@ -63,8 +60,6 @@ y = tf.add(tf.matmul(outputs[-1], w_fc2), b_fc2)
 rmse = tf.square(y_-y)
 mse = tf.reduce_mean(rmse) # MSE loss
 optimizer = tf.train.AdamOptimizer(learning_rate).minimize(mse)
-
-
 
 def sequencesFromTrainingData(batch_size, n_steps, n_input, n_output): 
     ''' This function creates several training sequences from each
