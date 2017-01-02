@@ -22,14 +22,14 @@ test_x = np.append(test_x, test_x, 0)
 test_y = np.append(test_y, test_y)
 
 # Network Parameters
-n_input = train_x.shape[1] # laoshi data input (img shape: 1*240)
+n_input = train_x.shape[1] #  data input (sample shape: 1540x1100)
 n_steps = 6 # timesteps
 n_hidden = 150 # hidden layer num of features
-n_output = 1 #total output (0-9 digits)
+n_output = 1 #total output 
 learning_rate = 0.006
 batch_init = 0
 
-training_iters = 450
+training_iters = 22500
 
 batch_size = 250
 ventana = 11
