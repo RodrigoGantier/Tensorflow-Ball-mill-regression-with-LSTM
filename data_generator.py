@@ -6,7 +6,6 @@ Created on Jan 9, 2017
 '''
 import numpy as np
 from scipy.signal import welch
-import scipy.signal as signal
 import scipy.io as sio
 
 def pooling_mean(data_x, ventana):
@@ -45,6 +44,7 @@ def main():
             data = welch(x = audio, fs= fs/2, window=np.hamming(frame_len), nperseg = frame_len, nfft=frame_len) #extrat the psv
             data = pooling_mean(data[1][:,:11000], ventana=20) #cutoff the freq beetween 11000 and 12800 and mean pooling 
             data_x[i, ii-1, :, :] = data   #storage the data matrix [:, 5, :, :] and [:, 7, :, :] are vibration and audio signals
+            data_x[i, ii-1, :, :] = data[1]
             data_y[i, ii-1, :22]  = i      #create the labels
             contador+=1
             print "Iteracion numero: "+repr(contador)
